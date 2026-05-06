@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Canvas Dashboard</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,16 +16,28 @@
         <p>Dong-A University</p>
       </div>
       <div class="login-form">
-     <label>Password</label>
-<input type="password" id="token-input" placeholder="Enter your password" />
-<button id="login-btn" onclick="login()">Sign In</button>
+        <label>Password</label>
+        <input type="password" id="token-input" placeholder="Enter your password" />
+        <button id="login-btn" onclick="login()">Sign In</button>
         <p class="login-hint">Your token is stored locally and never shared.</p>
       </div>
     </div>
   </div>
 
   <div id="main-app" class="main-app hidden">
-    <aside class="sidebar">
+    <!-- Mobile top bar -->
+    <div class="mobile-topbar">
+      <button class="hamburger" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="mobile-topbar-title">📚 Canvas</div>
+      <div id="mobile-avatar" style="width:32px;height:32px;background:var(--primary-light);color:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">--</div>
+    </div>
+
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <span class="logo-icon">📚</span>
         <span>Canvas</span>
@@ -38,19 +50,19 @@
         </div>
       </div>
       <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" onclick="navigate('dashboard', event)">
+        <a href="#" class="nav-item active" onclick="navigate('dashboard',event);closeSidebar()">
           <span>⊞</span> Dashboard
         </a>
-        <a href="#" class="nav-item" onclick="navigate('courses', event)">
+        <a href="#" class="nav-item" onclick="navigate('courses',event);closeSidebar()">
           <span>📖</span> Courses
         </a>
-        <a href="#" class="nav-item" onclick="navigate('assignments', event)">
+        <a href="#" class="nav-item" onclick="navigate('assignments',event);closeSidebar()">
           <span>📝</span> Assignments
         </a>
-        <a href="#" class="nav-item" onclick="navigate('grades', event)">
+        <a href="#" class="nav-item" onclick="navigate('grades',event);closeSidebar()">
           <span>📊</span> Grades
         </a>
-        <a href="#" class="nav-item" onclick="navigate('messages', event)">
+        <a href="#" class="nav-item" onclick="navigate('messages',event);closeSidebar()">
           <span>💬</span> Messages
         </a>
       </nav>
@@ -64,8 +76,44 @@
       <div id="page-grades" class="page hidden"></div>
       <div id="page-messages" class="page hidden"></div>
     </main>
+
+    <!-- Bottom nav (mobile only) -->
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <button class="bottom-nav-item active" id="bn-dashboard" onclick="navigate('dashboard');setBottomNav('dashboard')">
+          <span>⊞</span><span>Home</span>
+        </button>
+        <button class="bottom-nav-item" id="bn-courses" onclick="navigate('courses');setBottomNav('courses')">
+          <span>📖</span><span>Courses</span>
+        </button>
+        <button class="bottom-nav-item" id="bn-assignments" onclick="navigate('assignments');setBottomNav('assignments')">
+          <span>📝</span><span>Tasks</span>
+        </button>
+        <button class="bottom-nav-item" id="bn-grades" onclick="navigate('grades');setBottomNav('grades')">
+          <span>📊</span><span>Grades</span>
+        </button>
+        <button class="bottom-nav-item" id="bn-messages" onclick="navigate('messages');setBottomNav('messages')">
+          <span>💬</span><span>Messages</span>
+        </button>
+      </div>
+    </nav>
   </div>
 </div>
 <script src="app.js"></script>
+<script>
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('active');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('active');
+}
+function setBottomNav(page) {
+  document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById('bn-' + page);
+  if (el) el.classList.add('active');
+}
+</script>
 </body>
 </html>
