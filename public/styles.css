@@ -239,3 +239,37 @@ body {
 .spinner { width: 26px; height: 26px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-state { text-align: center; padding: 48px; color: var(--text-secondary); }
+
+/* Large modal */
+.modal-large { max-width: 720px; max-height: 88vh; overflow-y: auto; }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+
+/* Assignment description content */
+.assignment-description {
+  font-size: 14px; line-height: 1.75; color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 20px; max-height: 420px; overflow-y: auto;
+}
+.assignment-description img { max-width: 100%; height: auto; border-radius: 6px; }
+.assignment-description iframe { max-width: 100%; }
+.assignment-description a { color: var(--primary); }
+.assignment-description ul, .assignment-description ol { padding-left: 20px; }
+
+/* Submission tabs */
+.tab-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.tab-btn {
+  padding: 6px 16px; border-radius: 6px;
+  border: 1.5px solid var(--border); background: var(--surface);
+  color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* Compose form */
+.form-label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 5px; }
+.form-input {
+  width: 100%; padding: 10px 14px;
+  border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 14px; font-family: inherit; outline: none;
+  background: var(--surface); color: var(--text);
+}
+.form-input:focus { border-color: var(--primary); }
