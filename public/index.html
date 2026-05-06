@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-icon">📚</div>
+        <h1>Canvas Dashboard</h1>
+        <p>Dong-A University</p>
+      </div>
+      <div class="login-form">
+        <label>Canvas API Token</label>
+        <input type="password" id="token-input" placeholder="Paste your API token here" />
+        <button id="login-btn" onclick="login()">Connect to Canvas</button>
+        <p class="login-hint">Your token is stored locally and never shared.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="main-app" class="main-app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="logo-icon">📚</span>
+        <span>Canvas</span>
+      </div>
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">--</div>
+        <div class="user-details">
+          <div class="user-name" id="user-name">Loading...</div>
+          <div class="user-role">Student</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" onclick="navigate('dashboard', event)">
+          <span>⊞</span> Dashboard
+        </a>
+        <a href="#" class="nav-item" onclick="navigate('courses', event)">
+          <span>📖</span> Courses
+        </a>
+        <a href="#" class="nav-item" onclick="navigate('assignments', event)">
+          <span>📝</span> Assignments
+        </a>
+        <a href="#" class="nav-item" onclick="navigate('grades', event)">
+          <span>📊</span> Grades
+        </a>
+        <a href="#" class="nav-item" onclick="navigate('messages', event)">
+          <span>💬</span> Messages
+        </a>
+      </nav>
+      <button class="logout-btn" onclick="logout()">↩ Sign Out</button>
+    </aside>
+
+    <main class="content">
+      <div id="page-dashboard" class="page"></div>
+      <div id="page-courses" class="page hidden"></div>
+      <div id="page-assignments" class="page hidden"></div>
+      <div id="page-grades" class="page hidden"></div>
+      <div id="page-messages" class="page hidden"></div>
+    </main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
