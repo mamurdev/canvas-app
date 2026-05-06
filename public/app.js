@@ -50,6 +50,7 @@ async function login() {
   }
 }
 
+
 function logout() {
   localStorage.removeItem('canvas_token');
   token = '';
