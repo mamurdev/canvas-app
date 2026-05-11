@@ -65,7 +65,14 @@
         <a href="#" class="nav-item" onclick="navigate('messages',event);closeSidebar()">
           <span>💬</span> Messages
         </a>
+        <a href="#" class="nav-item" onclick="navigate('ai',event);closeSidebar()">
+          <span>🤖</span> AI Assistant
+        </a>
       </nav>
+      <button class="bottom-nav-item" id="bn-ai" onclick="navigate('ai');setBottomNav('ai')">
+        <span>🤖</span><span>AI</span>
+      </button>
+      
       <button class="logout-btn" onclick="logout()">↩ Sign Out</button>
     </aside>
 
@@ -75,6 +82,7 @@
       <div id="page-assignments" class="page hidden"></div>
       <div id="page-grades" class="page hidden"></div>
       <div id="page-messages" class="page hidden"></div>
+      <div id="page-ai" class="page hidden"></div>
     </main>
 
     <!-- Bottom nav (mobile only) -->

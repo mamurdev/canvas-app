@@ -187,6 +187,97 @@ app.post('/api/courses/:courseId/assignments/:assignmentId/submit-file', upload.
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── Gemini AI Routes ────────────────────────────────────────────────────────
+async function askGemini(prompt) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    }
+  );
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
+}
+
+app.post('/api/ai/prioritize', async (req, res) => {
+  try {
+    const { assignments } = req.body;
+    const prompt = `You are an academic advisor AI. A student has these assignments. Tell them exactly what to focus on today and this week, ranked by priority. Consider: urgency, points/grade impact, and submission status.
+
+Assignments:
+${assignments.map(a => `- "${a.name}" | Course: ${a.course} | Due: ${a.due_at || 'No due date'} | Points: ${a.points ?? 'N/A'} | Status: ${a.status}`).join('\n')}
+
+Today: ${new Date().toDateString()}
+
+Respond in this format:
+## 🎯 Do Today
+[Top 2-3 assignments to tackle TODAY with specific reasons]
+
+## 📅 Do This Week
+[Remaining assignments ranked by priority]
+
+## 💡 Strategy Tip
+[One specific actionable tip based on their workload]
+
+Be direct, specific, and encouraging. Keep it concise.`;
+
+    res.json({ result: await askGemini(prompt) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/ai/study-notes', async (req, res) => {
+  try {
+    const { assignmentName, description, courseName } = req.body;
+    const prompt = `You are a study assistant. Generate clear, structured study notes for this assignment.
+
+Course: ${courseName}
+Assignment: ${assignmentName}
+Description: ${description || 'No description provided'}
+
+Format:
+## 📚 Key Concepts
+[Main topics to understand]
+
+## ✅ What You Need To Do
+[Clear checklist of tasks]
+
+## 💡 Tips For Success
+[Specific advice for this assignment]
+
+## ⚠️ Watch Out For
+[Common mistakes or important details]
+
+Be specific. If no description, give smart advice based on the assignment name.`;
+
+    res.json({ result: await askGemini(prompt) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/ai/summarize', async (req, res) => {
+  try {
+    const { content, assignmentName, courseName } = req.body;
+    const prompt = `Summarize this assignment content clearly for a student.
+
+Course: ${courseName}
+Assignment: ${assignmentName}
+Content: ${content}
+
+Format:
+## 📝 Summary
+[2-3 sentence overview]
+
+## 🔑 Key Points
+[Bullet points of main ideas]
+
+## 🎯 What To Focus On
+[Most important things to understand or do]`;
+
+    res.json({ result: await askGemini(prompt) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('*', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'index.html'))
 );

@@ -75,12 +75,12 @@ function navigate(page, e) {
   if (e) e.preventDefault();
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const idx = ['dashboard', 'courses', 'assignments', 'grades', 'messages'].indexOf(page);
+  const idx = ['dashboard','courses','assignments','grades','messages','ai'].indexOf(page);
   const navItems = document.querySelectorAll('.nav-item');
   if (navItems[idx]) navItems[idx].classList.add('active');
   document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
   document.getElementById(`page-${page}`).classList.remove('hidden');
-  ({ dashboard: renderDashboard, courses: renderCourses, assignments: renderAssignments, grades: renderGrades, messages: renderMessages })[page]?.();
+  ({ dashboard: renderDashboard, courses: renderCourses, assignments: renderAssignments, grades: renderGrades, messages: renderMessages, ai: renderAI })[page]?.();
 }
 
 function formatDate(d) {
@@ -526,4 +526,167 @@ if (token) {
     if (p?.name) { profile = p; showApp(); }
     else localStorage.removeItem('canvas_token');
   }).catch(() => localStorage.removeItem('canvas_token'));
+}
+
+// ─── AI Assistant ────────────────────────────────────────────────────────────
+function renderMarkdown(text) {
+  return text
+    .replace(/## (.*?)(\n|$)/g, '</p><h3 class="ai-heading">$1</h3><p>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.*)/gm, '<li>$1</li>')
+    .replace(/(<li>.*?<\/li>)/gs, '<ul class="ai-list">$1</ul>')
+    .replace(/\n/g, '<br>');
+}
+
+async function renderAI() {
+  const el = document.getElementById('page-ai');
+  el.innerHTML = `
+    <div class="page-header">
+      <h2>🤖 AI Assistant</h2>
+      <p>Powered by Google Gemini — your personal academic advisor</p>
+    </div>
+
+    <div class="ai-card">
+      <div class="ai-card-header">
+        <div class="ai-card-icon">🎯</div>
+        <div>
+          <div class="ai-card-title">Priority Engine</div>
+          <div class="ai-card-desc">Analyzes all your assignments and tells you exactly what to work on today</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="runPrioritizer(this)" style="width:100%;margin-top:14px;">Analyze My Workload</button>
+      <div id="ai-priority-result" class="ai-result hidden"></div>
+    </div>
+
+    <div class="ai-card">
+      <div class="ai-card-header">
+        <div class="ai-card-icon">📚</div>
+        <div>
+          <div class="ai-card-title">Study Notes Generator</div>
+          <div class="ai-card-desc">Pick any assignment and get structured study notes instantly</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <select id="ai-course-select" class="form-input" onchange="loadAIAssignments(this.value)">
+          <option value="">Select a course...</option>
+          ${courses.map(c => `<option value="${c.id}" data-name="${c.name}">${c.name}</option>`).join('')}
+        </select>
+        <select id="ai-assignment-select" class="form-input" disabled>
+          <option>Select a course first...</option>
+        </select>
+        <button class="btn btn-primary" onclick="runStudyNotes(this)" style="width:100%;">Generate Study Notes</button>
+      </div>
+      <div id="ai-notes-result" class="ai-result hidden"></div>
+    </div>
+
+    <div class="ai-card">
+      <div class="ai-card-header">
+        <div class="ai-card-icon">⚡</div>
+        <div>
+          <div class="ai-card-title">Quick Summarizer</div>
+          <div class="ai-card-desc">Paste any assignment description and get an instant summary</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <input id="ai-sum-name" class="form-input" placeholder="Assignment name...">
+        <textarea id="ai-sum-content" class="form-input" style="height:100px;resize:vertical;" placeholder="Paste the assignment description or content here..."></textarea>
+        <button class="btn btn-primary" onclick="runSummarizer(this)" style="width:100%;">Summarize</button>
+      </div>
+      <div id="ai-sum-result" class="ai-result hidden"></div>
+    </div>
+  `;
+}
+
+async function loadAIAssignments(courseId) {
+  const sel = document.getElementById('ai-assignment-select');
+  if (!courseId) { sel.innerHTML = '<option>Select a course first...</option>'; sel.disabled = true; return; }
+  sel.innerHTML = '<option>Loading...</option>'; sel.disabled = true;
+  try {
+    const data = await api(`/api/courses/${courseId}/assignments`);
+    window._aiAssignments = Array.isArray(data) ? data : [];
+    sel.innerHTML = data.map(a => `<option value="${a.id}" data-desc="${encodeURIComponent(a.description || '')}">${a.name}</option>`).join('');
+    sel.disabled = false;
+  } catch (e) { sel.innerHTML = '<option>Could not load</option>'; }
+}
+
+async function runPrioritizer(btn) {
+  const resultEl = document.getElementById('ai-priority-result');
+  btn.textContent = 'Analyzing...'; btn.disabled = true;
+  resultEl.classList.add('hidden');
+  try {
+    const all = [];
+    await Promise.all(courses.slice(0, 8).map(async c => {
+      try {
+        const a = await api(`/api/courses/${c.id}/assignments`);
+        if (Array.isArray(a)) a.forEach(x => all.push({
+          name: x.name, course: c.name, due_at: x.due_at,
+          points: x.points_possible,
+          status: x.submission?.workflow_state || 'not submitted'
+        }));
+      } catch (e) {}
+    }));
+    const now = new Date();
+    const pending = all.filter(a => a.status !== 'submitted' && a.status !== 'graded');
+    const res = await fetch(`${BACKEND}/api/ai/prioritize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-canvas-token': token },
+      body: JSON.stringify({ assignments: pending })
+    });
+    const data = await res.json();
+    resultEl.innerHTML = `<p>${renderMarkdown(data.result)}</p>`;
+    resultEl.classList.remove('hidden');
+  } catch (e) {
+    resultEl.innerHTML = '<p style="color:var(--danger)">Could not analyze. Please try again.</p>';
+    resultEl.classList.remove('hidden');
+  }
+  btn.textContent = 'Analyze My Workload'; btn.disabled = false;
+}
+
+async function runStudyNotes(btn) {
+  const courseSelect = document.getElementById('ai-course-select');
+  const assignSelect = document.getElementById('ai-assignment-select');
+  const resultEl = document.getElementById('ai-notes-result');
+  if (!courseSelect.value || assignSelect.disabled) return alert('Please select a course and assignment.');
+  const courseName = courseSelect.options[courseSelect.selectedIndex].dataset.name;
+  const assignmentName = assignSelect.options[assignSelect.selectedIndex].text;
+  const description = decodeURIComponent(assignSelect.options[assignSelect.selectedIndex].dataset.desc || '');
+  btn.textContent = 'Generating...'; btn.disabled = true;
+  resultEl.classList.add('hidden');
+  try {
+    const res = await fetch(`${BACKEND}/api/ai/study-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-canvas-token': token },
+      body: JSON.stringify({ assignmentName, description, courseName })
+    });
+    const data = await res.json();
+    resultEl.innerHTML = `<p>${renderMarkdown(data.result)}</p>`;
+    resultEl.classList.remove('hidden');
+  } catch (e) {
+    resultEl.innerHTML = '<p style="color:var(--danger)">Could not generate notes. Please try again.</p>';
+    resultEl.classList.remove('hidden');
+  }
+  btn.textContent = 'Generate Study Notes'; btn.disabled = false;
+}
+
+async function runSummarizer(btn) {
+  const name = document.getElementById('ai-sum-name').value.trim();
+  const content = document.getElementById('ai-sum-content').value.trim();
+  const resultEl = document.getElementById('ai-sum-result');
+  if (!content) return alert('Please paste some content to summarize.');
+  btn.textContent = 'Summarizing...'; btn.disabled = true;
+  resultEl.classList.add('hidden');
+  try {
+    const res = await fetch(`${BACKEND}/api/ai/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-canvas-token': token },
+      body: JSON.stringify({ assignmentName: name || 'Assignment', content, courseName: 'General' })
+    });
+    const data = await res.json();
+    resultEl.innerHTML = `<p>${renderMarkdown(data.result)}</p>`;
+    resultEl.classList.remove('hidden');
+  } catch (e) {
+    resultEl.innerHTML = '<p style="color:var(--danger)">Could not summarize. Please try again.</p>';
+    resultEl.classList.remove('hidden');
+  }
+  btn.textContent = 'Summarize'; btn.disabled = false;
 }

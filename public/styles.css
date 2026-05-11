@@ -396,3 +396,61 @@ body {
   .bottom-nav { display: none !important; }
   .sidebar-overlay { display: none !important; }
 }
+
+/* ── AI Assistant ── */
+.ai-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.ai-card-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.ai-card-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background: var(--primary-light);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ai-card-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 3px;
+}
+.ai-card-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.ai-result {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.ai-heading {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 14px 0 6px;
+  color: var(--text);
+}
+.ai-list {
+  padding-left: 18px;
+  margin: 6px 0 10px;
+}
+.ai-list li {
+  margin-bottom: 4px;
+}
