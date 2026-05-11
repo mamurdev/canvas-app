@@ -75,12 +75,12 @@ function navigate(page, e) {
   if (e) e.preventDefault();
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const idx = ['dashboard','courses','assignments','grades','messages','ai'].indexOf(page);
+  const idx = ['dashboard','courses','assignments','grades','messages','ai','course-detail'].indexOf(page);
   const navItems = document.querySelectorAll('.nav-item');
   if (navItems[idx]) navItems[idx].classList.add('active');
   document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
   document.getElementById(`page-${page}`).classList.remove('hidden');
-  ({ dashboard: renderDashboard, courses: renderCourses, assignments: renderAssignments, grades: renderGrades, messages: renderMessages, ai: renderAI })[page]?.();
+  ({ dashboard: renderDashboard, courses: renderCourses, assignments: renderAssignments, grades: renderGrades, messages: renderMessages, ai: renderAI, 'course-detail': renderCourseDetail })[page]?.();
 }
 
 function formatDate(d) {
@@ -169,7 +169,7 @@ function renderCourses() {
 
 function selectAndNavigate(id, name) {
   window._selectedCourse = { id, name };
-  navigate('assignments');
+  navigate('course-detail');
 }
 
 // ─── Assignments ────────────────────────────────────────────────────────────
@@ -689,4 +689,302 @@ async function runSummarizer(btn) {
     resultEl.classList.remove('hidden');
   }
   btn.textContent = 'Summarize'; btn.disabled = false;
+}
+
+// ─── Course Detail ───────────────────────────────────────────────────────────
+async function renderCourseDetail() {
+  const course = window._selectedCourse;
+  if (!course) { navigate('courses'); return; }
+  const el = document.getElementById('page-course-detail');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <button class="btn btn-secondary" onclick="navigate('courses')" style="padding:8px 14px;">← Back</button>
+      <h2 style="font-size:18px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${course.name}</h2>
+    </div>
+    <div class="cd-tabs">
+      <button class="cd-tab active" onclick="switchCDTab('announcements',this)">📢 Announcements</button>
+      <button class="cd-tab" onclick="switchCDTab('modules',this)">📁 Modules</button>
+      <button class="cd-tab" onclick="switchCDTab('assignments',this)">📝 Assignments</button>
+      <button class="cd-tab" onclick="switchCDTab('grades',this)">📊 Grades</button>
+    </div>
+    <div id="cd-announcements" class="cd-panel">
+      <div class="loading"><div class="spinner"></div><span>Loading announcements...</span></div>
+    </div>
+    <div id="cd-modules" class="cd-panel hidden">
+      <div class="loading"><div class="spinner"></div><span>Loading modules...</span></div>
+    </div>
+    <div id="cd-assignments" class="cd-panel hidden">
+      <div class="loading"><div class="spinner"></div><span>Loading assignments...</span></div>
+    </div>
+    <div id="cd-grades" class="cd-panel hidden">
+      <div class="loading"><div class="spinner"></div><span>Loading grades...</span></div>
+    </div>
+  `;
+
+  loadCDAnnouncements(course.id);
+}
+
+function switchCDTab(tab, el) {
+  document.querySelectorAll('.cd-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.cd-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById(`cd-${tab}`).classList.remove('hidden');
+
+  const course = window._selectedCourse;
+  const loaders = {
+    announcements: () => loadCDAnnouncements(course.id),
+    modules: () => loadCDModules(course.id),
+    assignments: () => loadCDAssignments(course.id),
+    grades: () => loadCDGrades(course.id)
+  };
+  const panel = document.getElementById(`cd-${tab}`);
+  if (panel.dataset.loaded !== 'true') loaders[tab]?.();
+}
+
+async function loadCDAnnouncements(courseId) {
+  const el = document.getElementById('cd-announcements');
+  try {
+    const data = await api(`/api/courses/${courseId}/announcements`);
+    el.dataset.loaded = 'true';
+    if (!Array.isArray(data) || !data.length) {
+      el.innerHTML = '<div class="empty-state"><p>No announcements.</p></div>'; return;
+    }
+    el.innerHTML = data.map(a => `
+      <div class="cd-announcement">
+        <div class="cd-ann-dot ${!a.read_state || a.read_state === 'unread' ? 'unread' : ''}"></div>
+        <div style="flex:1;min-width:0;">
+          <div class="cd-ann-title">${a.title}</div>
+          <div class="cd-ann-meta">${a.author?.display_name || 'Instructor'} · ${a.posted_at ? new Date(a.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</div>
+          <div class="cd-ann-body">${a.message ? a.message.replace(/<[^>]*>/g, '').slice(0, 200) + (a.message.length > 200 ? '…' : '') : ''}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state"><p>Could not load announcements.</p></div>';
+  }
+}
+
+async function loadCDModules(courseId) {
+  const el = document.getElementById('cd-modules');
+  try {
+    const modules = await api(`/api/courses/${courseId}/modules`);
+    el.dataset.loaded = 'true';
+    if (!Array.isArray(modules) || !modules.length) {
+      el.innerHTML = '<div class="empty-state"><p>No modules found.</p></div>'; return;
+    }
+    el.innerHTML = modules.map(m => `
+      <div class="cd-module">
+        <div class="cd-module-header" onclick="toggleModule(this, ${courseId}, ${m.id})">
+          <span class="cd-module-arrow">▶</span>
+          <span class="cd-module-name">${m.name}</span>
+          <span class="cd-module-count">${m.items_count || 0} items</span>
+        </div>
+        <div class="cd-module-items hidden" id="module-items-${m.id}">
+          <div class="loading" style="padding:20px;"><div class="spinner"></div><span>Loading...</span></div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state"><p>Could not load modules.</p></div>';
+  }
+}
+
+async function toggleModule(headerEl, courseId, moduleId) {
+  const itemsEl = document.getElementById(`module-items-${moduleId}`);
+  const arrow = headerEl.querySelector('.cd-module-arrow');
+  const isOpen = !itemsEl.classList.contains('hidden');
+
+  if (isOpen) {
+    itemsEl.classList.add('hidden');
+    arrow.style.transform = 'rotate(0deg)';
+    return;
+  }
+
+  itemsEl.classList.remove('hidden');
+  arrow.style.transform = 'rotate(90deg)';
+
+  if (itemsEl.dataset.loaded === 'true') return;
+
+  try {
+    const items = await api(`/api/courses/${courseId}/modules/${moduleId}/items`);
+    itemsEl.dataset.loaded = 'true';
+    if (!Array.isArray(items) || !items.length) {
+      itemsEl.innerHTML = '<div style="padding:12px 16px;color:var(--text-secondary);font-size:13px;">No items in this module.</div>';
+      return;
+    }
+    itemsEl.innerHTML = items.map(item => {
+      const icon = getItemIcon(item.type, item.content_details);
+      const isVideo = isVideoFile(item);
+      const isClickable = ['Assignment', 'File', 'Page', 'ExternalUrl', 'ExternalTool'].includes(item.type);
+      return `
+        <div class="cd-item ${isClickable ? 'clickable' : ''}" onclick="${isClickable ? `handleModuleItem(${courseId}, ${JSON.stringify(item).replace(/"/g, '&quot;')})` : ''}">
+          <span class="cd-item-icon">${icon}</span>
+          <span class="cd-item-title">${item.title}</span>
+          ${isVideo ? '<span class="cd-item-badge">▶ Video</span>' : ''}
+          ${item.type === 'Assignment' ? '<span class="cd-item-badge">Assignment</span>' : ''}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    itemsEl.innerHTML = '<div style="padding:12px 16px;color:var(--danger);font-size:13px;">Could not load items.</div>';
+  }
+}
+
+function getItemIcon(type, details) {
+  if (type === 'Assignment') return '📝';
+  if (type === 'Quiz') return '✅';
+  if (type === 'Discussion') return '💬';
+  if (type === 'ExternalUrl') return '🔗';
+  if (type === 'Page') return '📄';
+  if (type === 'SubHeader') return '';
+  if (type === 'File' || type === 'ExternalTool') {
+    const mime = details?.content_type || '';
+    if (mime.startsWith('video/') || mime.includes('mp4')) return '🎬';
+    if (mime.startsWith('image/')) return '🖼️';
+    if (mime.includes('pdf')) return '📕';
+    if (mime.includes('zip')) return '📦';
+    return '📎';
+  }
+  return '📄';
+}
+
+function isVideoFile(item) {
+  const mime = item.content_details?.content_type || '';
+  return mime.startsWith('video/') || mime.includes('mp4') || item.type === 'ExternalTool';
+}
+
+async function handleModuleItem(courseId, item) {
+  if (item.type === 'Assignment') {
+    openAssignmentDetail(courseId, item.content_id);
+  } else if (item.type === 'ExternalUrl') {
+    window.open(item.external_url, '_blank');
+  } else if (item.type === 'File') {
+    const mime = item.content_details?.content_type || '';
+    if (mime.startsWith('video/') || mime.includes('mp4') || mime.includes('webm')) {
+      try {
+        const file = await api(`/api/files/${item.content_id}`);
+        openVideoPlayer(item.title, file.url);
+      } catch(e) { window.open(item.html_url, '_blank'); }
+    } else {
+      window.open(item.html_url, '_blank');
+    }
+  } else if (item.type === 'Page') {
+    try {
+      const page = await api(`/api/courses/${courseId}/pages/${item.page_url}`);
+      openPageModal(item.title, page.body);
+    } catch(e) { window.open(item.html_url, '_blank'); }
+  } else if (item.type === 'ExternalTool') {
+    openVideoPlayer(item.title, item.url || item.html_url, true);
+  } else {
+    window.open(item.html_url, '_blank');
+  }
+}
+
+function openVideoPlayer(title, url, isEmbed = false) {
+  document.getElementById('video-modal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'video-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal modal-large" style="max-width:860px;border-radius:12px;padding:20px;">
+      <div class="modal-header" style="margin-bottom:14px;">
+        <h3 style="flex:1;font-size:15px;">${title}</h3>
+        <button class="btn btn-secondary" onclick="document.getElementById('video-modal').remove()">✕</button>
+      </div>
+      <div class="video-container">
+        ${isEmbed
+          ? `<iframe src="${url}" frameborder="0" allowfullscreen style="width:100%;height:100%;border-radius:8px;"></iframe>`
+          : `<video controls style="width:100%;border-radius:8px;background:#000;max-height:480px;">
+               <source src="${url}">
+               Your browser does not support video playback.
+             </video>`
+        }
+      </div>
+      <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn btn-secondary" onclick="summarizeVideo('${title.replace(/'/g,"\\'")}')">🤖 AI Summarize This</button>
+        <a href="${url}" target="_blank" class="btn btn-secondary">↗ Open in new tab</a>
+      </div>
+      <div id="video-ai-result" class="ai-result hidden" style="margin-top:12px;"></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
+
+async function summarizeVideo(title) {
+  const resultEl = document.getElementById('video-ai-result');
+  resultEl.innerHTML = '<div class="loading" style="padding:16px;"><div class="spinner"></div><span>AI is analyzing...</span></div>';
+  resultEl.classList.remove('hidden');
+  const course = window._selectedCourse;
+  try {
+    const res = await fetch(`${BACKEND}/api/ai/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-canvas-token': token },
+      body: JSON.stringify({
+        assignmentName: title,
+        content: `This is a lecture video titled "${title}" from the course "${course?.name || 'Unknown course'}". Provide what a student should expect to learn from this video, key concepts it likely covers, and how to best prepare notes while watching.`,
+        courseName: course?.name || 'Unknown'
+      })
+    });
+    const data = await res.json();
+    resultEl.innerHTML = `<p>${renderMarkdown(data.result)}</p>`;
+  } catch(e) {
+    resultEl.innerHTML = '<p style="color:var(--danger)">Could not generate summary.</p>';
+  }
+}
+
+function openPageModal(title, body) {
+  document.getElementById('page-modal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'page-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal modal-large" style="max-width:760px;border-radius:12px;">
+      <div class="modal-header">
+        <h3 style="flex:1;">${title}</h3>
+        <button class="btn btn-secondary" onclick="document.getElementById('page-modal').remove()">✕</button>
+      </div>
+      <div class="assignment-description" style="margin-top:16px;max-height:60vh;">${body || 'No content.'}</div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
+
+async function loadCDAssignments(courseId) {
+  const el = document.getElementById('cd-assignments');
+  try {
+    const data = await api(`/api/courses/${courseId}/assignments`);
+    el.dataset.loaded = 'true';
+    if (!Array.isArray(data) || !data.length) {
+      el.innerHTML = '<div class="empty-state"><p>No assignments.</p></div>'; return;
+    }
+    const sorted = [...data].sort((a, b) => !a.due_at ? 1 : !b.due_at ? -1 : new Date(a.due_at) - new Date(b.due_at));
+    el.innerHTML = sorted.map(a => `
+      <div class="assignment-item" onclick="openAssignmentDetail(${courseId}, ${a.id})">
+        <div class="assignment-info">
+          <div class="assignment-title">${a.name}</div>
+          <div class="assignment-course">${a.points_possible != null ? a.points_possible + ' pts' : 'Ungraded'}</div>
+        </div>
+        <div class="assignment-meta">
+          <div class="due-date ${dateClass(a.due_at)}">${formatDate(a.due_at)}</div>
+          ${badge(a.submission)}
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state"><p>Could not load assignments.</p></div>';
+  }
+}
+
+async function loadCDGrades(courseId) {
+  const el = document.getElementById('cd-grades');
+  try {
+    const e = await api(`/api/courses/${courseId}/grades`);
+    el.dataset.loaded = 'true';
+    const g = Array.isArray(e) ? e[0]?.grades : null;
+    el.innerHTML = g ? `
+      <div class="stats-row" style="margin-top:8px;">
+        <div class="stat-card"><div class="stat-label">Current Score</div><div class="stat-value">${g.current_score != null ? g.current_score + '%' : '—'}</div></div>
+        <div class="stat-card"><div class="stat-label">Final Score</div><div class="stat-value">${g.final_score != null ? g.final_score + '%' : '—'}</div></div>
+        <div class="stat-card"><div class="stat-label">Grade</div><div class="stat-value">${g.current_grade || g.final_grade || '—'}</div></div>
+      </div>` : '<div class="empty-state"><p>No grade data available.</p></div>';
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state"><p>Could not load grades.</p></div>';
+  }
 }

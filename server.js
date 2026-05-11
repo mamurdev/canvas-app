@@ -189,8 +189,10 @@ app.post('/api/courses/:courseId/assignments/:assignmentId/submit-file', upload.
 
 // ─── Gemini AI Routes ────────────────────────────────────────────────────────
 async function askGemini(prompt) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY not set in environment variables');
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -198,7 +200,10 @@ async function askGemini(prompt) {
     }
   );
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
+  if (data.error) throw new Error(`Gemini error: ${data.error.message}`);
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response from Gemini');
+  return text;
 }
 
 app.post('/api/ai/prioritize', async (req, res) => {
@@ -276,6 +281,36 @@ Format:
 
     res.json({ result: await askGemini(prompt) });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Course announcements
+app.get('/api/courses/:id/announcements', async (req, res) => {
+  try { res.json(await canvasRequest(getToken(req), `/courses/${req.params.id}/discussion_topics?only_announcements=true&per_page=10`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Course modules with items included
+app.get('/api/courses/:id/modules', async (req, res) => {
+  try { res.json(await canvasRequest(getToken(req), `/courses/${req.params.id}/modules?include[]=items&per_page=50`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Module items with content details (for file URLs, video links)
+app.get('/api/courses/:id/modules/:moduleId/items', async (req, res) => {
+  try { res.json(await canvasRequest(getToken(req), `/courses/${req.params.id}/modules/${req.params.moduleId}/items?include[]=content_details&per_page=50`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// File details (download URL for videos/files)
+app.get('/api/files/:fileId', async (req, res) => {
+  try { res.json(await canvasRequest(getToken(req), `/files/${req.params.fileId}`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Page content
+app.get('/api/courses/:id/pages/:pageUrl', async (req, res) => {
+  try { res.json(await canvasRequest(getToken(req), `/courses/${req.params.id}/pages/${encodeURIComponent(req.params.pageUrl)}`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('*', (req, res) =>
