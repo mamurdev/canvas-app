@@ -322,6 +322,21 @@ app.get('/api/ai/test', async (req, res) => {
   }
 });
 
+app.get('/api/courses/:courseId/lti-launch', async (req, res) => {
+  try {
+    const { url, module_item_id } = req.query;
+    const params = new URLSearchParams();
+    if (url) params.append('url', url);
+    if (module_item_id) params.append('module_item_id', module_item_id);
+    params.append('launch_type', 'module_item');
+    const data = await canvasRequest(
+      getToken(req),
+      `/courses/${req.params.courseId}/external_tools/sessionless_launch?${params.toString()}`
+    );
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('*', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'index.html'))
 );

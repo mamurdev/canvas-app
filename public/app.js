@@ -915,34 +915,64 @@ async function handleModuleItem(courseId, item) {
   }
 }
 
-function openLTIViewer(title, canvasUrl, item) {
+async function openLTIViewer(title, canvasUrl, item) {
   document.getElementById('lti-modal')?.remove();
-  const due = item.content_details?.due_at;
-  const dueStr = due ? new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
   const m = document.createElement('div');
   m.id = 'lti-modal';
   m.className = 'modal-overlay';
   m.innerHTML = `
-    <div class="modal" style="max-width:500px;border-radius:12px;text-align:center;">
-      <div style="font-size:48px;margin-bottom:16px;">🎬</div>
-      <h3 style="margin-bottom:8px;">${title}</h3>
-      ${dueStr ? `<p style="color:var(--text-secondary);margin-bottom:4px;">Due: ${dueStr}</p>` : ''}
-      <p style="color:var(--text-secondary);margin-bottom:24px;font-size:13px;">
-        This video is hosted on Dong-A University's LMS platform. Click below to open it — you're already logged into Canvas so it will work directly.
-      </p>
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <a href="${canvasUrl}" target="_blank" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;">
-          ▶ Watch Video in Canvas
-        </a>
-        <button class="btn btn-secondary" onclick="summarizeLTI('${title.replace(/'/g,"\\'")}')">
-          🤖 AI — What is this lecture about?
-        </button>
-        <button class="btn btn-secondary" onclick="document.getElementById('lti-modal').remove()">Close</button>
+    <div class="modal modal-large" style="max-width:900px;border-radius:12px;padding:20px;">
+      <div class="modal-header" style="margin-bottom:14px;">
+        <h3 style="flex:1;font-size:15px;">🎬 ${title}</h3>
+        <button class="btn btn-secondary" onclick="document.getElementById('lti-modal').remove()">✕</button>
       </div>
-      <div id="lti-ai-result" class="ai-result hidden" style="margin-top:14px;text-align:left;"></div>
+      <div id="lti-video-area" class="video-container" style="background:#000;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <div class="loading" style="color:white;"><div class="spinner" style="border-top-color:white;"></div><span>Loading video...</span></div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="summarizeLTI('${title.replace(/'/g,"\\'")}')">🤖 What is this lecture about?</button>
+        <a href="${canvasUrl}" target="_blank" class="btn btn-secondary">↗ Open in Canvas</a>
+      </div>
+      <div id="lti-ai-result" class="ai-result hidden" style="margin-top:12px;"></div>
     </div>`;
   document.body.appendChild(m);
   m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+
+  // Try to get authenticated sessionless launch URL
+  try {
+    const courseId = window._selectedCourse?.id;
+    const params = new URLSearchParams();
+    if (item.url) params.append('url', item.url);
+    if (item.id) params.append('module_item_id', item.id);
+
+    const res = await fetch(`${BACKEND}/api/courses/${courseId}/lti-launch?${params.toString()}`, {
+      headers: { 'x-canvas-token': token }
+    });
+    const data = await res.json();
+
+    const area = document.getElementById('lti-video-area');
+    if (data.url) {
+      area.innerHTML = `<iframe src="${data.url}" frameborder="0" allowfullscreen
+        style="width:100%;height:100%;border-radius:8px;"
+        allow="autoplay; fullscreen; camera; microphone"></iframe>`;
+    } else {
+      // Sessionless launch didn't return a URL — fall back to Canvas link
+      area.innerHTML = `
+        <div style="text-align:center;padding:40px;color:white;">
+          <div style="font-size:48px;margin-bottom:16px;">🎬</div>
+          <p style="margin-bottom:20px;opacity:0.8;">This video is hosted on Dong-A's LMS.<br>Click below to watch it — you're already logged in.</p>
+          <a href="${canvasUrl}" target="_blank" class="btn btn-primary" style="text-decoration:none;">▶ Watch on Canvas</a>
+        </div>`;
+    }
+  } catch(e) {
+    const area = document.getElementById('lti-video-area');
+    area.innerHTML = `
+      <div style="text-align:center;padding:40px;color:white;">
+        <div style="font-size:48px;margin-bottom:16px;">🎬</div>
+        <p style="margin-bottom:20px;opacity:0.8;">Open this video in Canvas where you're already logged in.</p>
+        <a href="${canvasUrl}" target="_blank" class="btn btn-primary" style="text-decoration:none;">▶ Watch on Canvas</a>
+      </div>`;
+  }
 }
 
 async function summarizeLTI(title) {
