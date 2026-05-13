@@ -4,7 +4,7 @@ let currentPage = 'dashboard';
 let courses = [];
 let profile = {};
 
-const GROQ_KEY = 'your-groq-key-here';
+const GROQ_KEY = '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';
 
 async function askGemini(prompt) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
