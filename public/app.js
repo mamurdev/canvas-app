@@ -5,7 +5,7 @@ let courses = [];
 let profile = {};
 
 // ─── Gemini AI (direct frontend call) ────────────────────────────────────────
-const GEMINI_KEY = 'YOUR_GEMINI_API_KEY_HERE'; // paste your key here
+const GEMINI_KEY = 'AIzaSyDAY5yuI5NR2meBPgNyyCdZeQrn0bxegY4'; // paste your key here
 
 async function askGemini(prompt) {
   const res = await fetch(
