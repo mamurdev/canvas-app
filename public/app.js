@@ -4,21 +4,24 @@ let currentPage = 'dashboard';
 let courses = [];
 let profile = {};
 
-// ─── Gemini AI (direct frontend call) ────────────────────────────────────────
-const GEMINI_KEY = 'AIzaSyDAY5yuI5NR2meBPgNyyCdZeQrn0bxegY4'; // paste your key here
+const GROQ_KEY = 'your-groq-key-here';
 
 async function askGemini(prompt) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    }
-  );
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1000
+    })
+  });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
 // ─── API Helper ───────────────────────────────────────────────────────────────
