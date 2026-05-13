@@ -840,7 +840,7 @@ async function toggleModule(headerEl, courseId, moduleId) {
       let dateStr = '';
       if (due) dateStr = `Due ${new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
-      return `
+      return ` 
         <div class="cd-item-row clickable" onclick="handleModuleItem(${courseId}, ${JSON.stringify(item).replace(/"/g,'&quot;')})">
           <div class="cd-item-left">
             <span class="cd-item-icon">${icon}</span>
