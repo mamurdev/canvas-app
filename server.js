@@ -313,6 +313,15 @@ app.get('/api/courses/:id/pages/:pageUrl', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/ai/test', async (req, res) => {
+  try {
+    const result = await askGemini('Say "Gemini is working!" and nothing else.');
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('*', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'index.html'))
 );
