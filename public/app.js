@@ -792,35 +792,71 @@ async function toggleModule(headerEl, courseId, moduleId) {
   const itemsEl = document.getElementById(`module-items-${moduleId}`);
   const arrow = headerEl.querySelector('.cd-module-arrow');
   const isOpen = !itemsEl.classList.contains('hidden');
-
   if (isOpen) {
     itemsEl.classList.add('hidden');
     arrow.style.transform = 'rotate(0deg)';
     return;
   }
-
   itemsEl.classList.remove('hidden');
   arrow.style.transform = 'rotate(90deg)';
-
   if (itemsEl.dataset.loaded === 'true') return;
 
   try {
     const items = await api(`/api/courses/${courseId}/modules/${moduleId}/items`);
     itemsEl.dataset.loaded = 'true';
     if (!Array.isArray(items) || !items.length) {
-      itemsEl.innerHTML = '<div style="padding:12px 16px;color:var(--text-secondary);font-size:13px;">No items in this module.</div>';
+      itemsEl.innerHTML = '<div style="padding:12px 16px;color:var(--text-secondary);font-size:13px;">No items.</div>';
       return;
     }
     itemsEl.innerHTML = items.map(item => {
+      if (item.type === 'SubHeader') return `<div class="cd-subheader">${item.title}</div>`;
       const icon = getItemIcon(item.type, item.content_details);
-      const isVideo = isVideoFile(item);
-      const isClickable = ['Assignment', 'File', 'Page', 'ExternalUrl', 'ExternalTool'].includes(item.type);
+      const isVideo = item.type === 'ExternalTool';
+      const isAssignment = item.type === 'Assignment';
+      const due = item.content_details?.due_at;
+      const dueDate = due ? new Date(due) : null;
+      const now = new Date();
+      const pts = item.content_details?.points_possible;
+      const completed = item.completion_requirement?.completed;
+
+      // Status badge
+      let statusBadge = '';
+      if (completed) {
+        statusBadge = '<span class="mod-badge mod-badge-done">✓ Done</span>';
+      } else if (dueDate) {
+        if (dueDate < now) {
+          statusBadge = '<span class="mod-badge mod-badge-closed">Closed</span>';
+        } else {
+          const days = Math.ceil((dueDate - now) / 86400000);
+          if (days <= 7) statusBadge = `<span class="mod-badge mod-badge-due">D-${days}</span>`;
+          else statusBadge = `<span class="mod-badge mod-badge-upcoming">Upcoming</span>`;
+        }
+      }
+
+      // Attendance badge for LTI tools (동영상강의)
+      const attendanceBadge = isVideo ? '<span class="mod-badge mod-badge-attend">Attendance</span>' : '';
+
+      // Date string
+      let dateStr = '';
+      if (due) dateStr = `Due ${new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
       return `
-        <div class="cd-item ${isClickable ? 'clickable' : ''}" onclick="${isClickable ? `handleModuleItem(${courseId}, ${JSON.stringify(item).replace(/"/g, '&quot;')})` : ''}">
-          <span class="cd-item-icon">${icon}</span>
-          <span class="cd-item-title">${item.title}</span>
-          ${isVideo ? '<span class="cd-item-badge">▶ Video</span>' : ''}
-          ${item.type === 'Assignment' ? '<span class="cd-item-badge">Assignment</span>' : ''}
+        <div class="cd-item-row clickable" onclick="handleModuleItem(${courseId}, ${JSON.stringify(item).replace(/"/g,'&quot;')})">
+          <div class="cd-item-left">
+            <span class="cd-item-icon">${icon}</span>
+            <div class="cd-item-info">
+              <div class="cd-item-title">${item.title}</div>
+              <div class="cd-item-sub">
+                ${isVideo ? '<span style="color:var(--text-secondary);font-size:11px;">동영상강의 (LMS)</span>' : ''}
+                ${pts != null ? `<span style="color:var(--text-secondary);font-size:11px;">${pts} pts</span>` : ''}
+                ${dateStr ? `<span style="color:var(--text-secondary);font-size:11px;">${dateStr}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="cd-item-right">
+            ${attendanceBadge}
+            ${statusBadge}
+          </div>
         </div>`;
     }).join('');
   } catch (e) {
@@ -854,11 +890,12 @@ function isVideoFile(item) {
 async function handleModuleItem(courseId, item) {
   if (item.type === 'Assignment') {
     openAssignmentDetail(courseId, item.content_id);
-  } else if (item.type === 'ExternalUrl') {
-    window.open(item.external_url, '_blank');
+  } else if (item.type === 'ExternalTool') {
+    // LTI videos — open in Canvas where user is authenticated
+    openLTIViewer(item.title, item.html_url, item);
   } else if (item.type === 'File') {
     const mime = item.content_details?.content_type || '';
-    if (mime.startsWith('video/') || mime.includes('mp4') || mime.includes('webm')) {
+    if (mime.startsWith('video/') || mime.includes('mp4')) {
       try {
         const file = await api(`/api/files/${item.content_id}`);
         openVideoPlayer(item.title, file.url);
@@ -871,10 +908,62 @@ async function handleModuleItem(courseId, item) {
       const page = await api(`/api/courses/${courseId}/pages/${item.page_url}`);
       openPageModal(item.title, page.body);
     } catch(e) { window.open(item.html_url, '_blank'); }
-  } else if (item.type === 'ExternalTool') {
-    openVideoPlayer(item.title, item.url || item.html_url, true);
+  } else if (item.type === 'ExternalUrl') {
+    window.open(item.external_url, '_blank');
   } else {
     window.open(item.html_url, '_blank');
+  }
+}
+
+function openLTIViewer(title, canvasUrl, item) {
+  document.getElementById('lti-modal')?.remove();
+  const due = item.content_details?.due_at;
+  const dueStr = due ? new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
+  const m = document.createElement('div');
+  m.id = 'lti-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal" style="max-width:500px;border-radius:12px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">🎬</div>
+      <h3 style="margin-bottom:8px;">${title}</h3>
+      ${dueStr ? `<p style="color:var(--text-secondary);margin-bottom:4px;">Due: ${dueStr}</p>` : ''}
+      <p style="color:var(--text-secondary);margin-bottom:24px;font-size:13px;">
+        This video is hosted on Dong-A University's LMS platform. Click below to open it — you're already logged into Canvas so it will work directly.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a href="${canvasUrl}" target="_blank" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;">
+          ▶ Watch Video in Canvas
+        </a>
+        <button class="btn btn-secondary" onclick="summarizeLTI('${title.replace(/'/g,"\\'")}')">
+          🤖 AI — What is this lecture about?
+        </button>
+        <button class="btn btn-secondary" onclick="document.getElementById('lti-modal').remove()">Close</button>
+      </div>
+      <div id="lti-ai-result" class="ai-result hidden" style="margin-top:14px;text-align:left;"></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
+
+async function summarizeLTI(title) {
+  const resultEl = document.getElementById('lti-ai-result');
+  resultEl.innerHTML = '<div class="loading" style="padding:12px;"><div class="spinner"></div><span>Thinking...</span></div>';
+  resultEl.classList.remove('hidden');
+  const course = window._selectedCourse;
+  try {
+    const res = await fetch(`${BACKEND}/api/ai/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-canvas-token': token },
+      body: JSON.stringify({
+        assignmentName: title,
+        content: `This is a university lecture video titled "${title}" from the course "${course?.name || 'Unknown'}". Based on the title, explain what topics this lecture likely covers, what key concepts a student should focus on, and what notes to take.`,
+        courseName: course?.name || 'Unknown'
+      })
+    });
+    const data = await res.json();
+    resultEl.innerHTML = `<p>${renderMarkdown(data.result)}</p>`;
+  } catch(e) {
+    resultEl.innerHTML = '<p style="color:var(--danger)">AI unavailable right now.</p>';
   }
 }
 
