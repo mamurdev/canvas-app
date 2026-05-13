@@ -554,3 +554,22 @@ body {
 .mod-badge-due { background: #fef3c7; color: #b45309; }
 .mod-badge-upcoming { background: #eff6ff; color: #2563eb; }
 .mod-badge-attend { background: #dcfce7; color: #15803d; }
+
+
+/* ── Video Upload ── */
+.video-upload-label {
+  display: block;
+  padding: 20px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: border-color 0.2s, background 0.2s;
+}
+.video-upload-label:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+}

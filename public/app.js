@@ -432,6 +432,23 @@ async function renderAI() {
         <div class="ai-card-icon">⚡</div>
         <div>
           <div class="ai-card-title">Quick Summarizer</div>
+          <div class="ai-card">
+  <div class="ai-card-header">
+    <div class="ai-card-icon">🎥</div>
+    <div>
+      <div class="ai-card-title">Video Lesson Transcriber</div>
+      <div class="ai-card-desc">Upload a video lecture — AI converts it to text and summarizes it</div>
+    </div>
+  </div>
+  <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+    <label class="video-upload-label" id="video-upload-label">
+      <span id="video-upload-text">📁 Choose a video file (mp4, webm, m4a — max 25MB)</span>
+      <input type="file" id="video-file-input" accept="video/*,audio/*,.mp4,.webm,.m4a,.mp3,.wav" style="display:none" onchange="onVideoFileChosen(this)">
+    </label>
+    <button class="btn btn-primary" onclick="runVideoTranscribe(this)" style="width:100%;">🎙️ Transcribe & Summarize</button>
+  </div>
+  <div id="ai-video-result" class="ai-result hidden"></div>
+</div>
           <div class="ai-card-desc">Paste any assignment description and get an instant summary</div>
         </div>
       </div>
@@ -888,4 +905,91 @@ async function loadCDGrades(courseId) {
   } catch (e) {
     el.innerHTML = '<div class="empty-state"><p>Could not load grades.</p></div>';
   }
+}
+
+function onVideoFileChosen(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const label = document.getElementById('video-upload-text');
+  label.textContent = `✅ ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+}
+
+async function runVideoTranscribe(btn) {
+  const fileInput = document.getElementById('video-file-input');
+  const resultEl = document.getElementById('ai-video-result');
+  const file = fileInput.files[0];
+
+  if (!file) return alert('Please choose a video file first.');
+  if (file.size > 25 * 1024 * 1024) return alert('File too large. Max size is 25MB.');
+
+  btn.textContent = 'Transcribing...'; btn.disabled = true;
+  resultEl.classList.remove('hidden');
+  resultEl.innerHTML = '<div class="loading" style="padding:16px;"><div class="spinner"></div><span>Transcribing video — this may take 20–40 seconds...</span></div>';
+
+  try {
+    // Step 1: Transcribe with Groq Whisper
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('model', 'whisper-large-v3');
+    formData.append('response_format', 'text');
+
+    const transcribeRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${GROQ_KEY}` },
+      body: formData
+    });
+
+    if (!transcribeRes.ok) {
+      const err = await transcribeRes.json();
+      throw new Error(err.error?.message || 'Transcription failed');
+    }
+
+    const transcript = await transcribeRes.text();
+
+    if (!transcript || transcript.trim().length < 10) {
+      throw new Error('Could not detect speech in this video. Make sure it has audio.');
+    }
+
+    // Step 2: Summarize the transcript
+    resultEl.innerHTML = '<div class="loading" style="padding:16px;"><div class="spinner"></div><span>Summarizing transcript...</span></div>';
+
+    const summary = await askGemini(`You are a study assistant. A student uploaded a lecture video and here is the full transcript. Create clear, structured study notes from it.
+
+Transcript:
+${transcript.slice(0, 6000)}
+
+Format your response as:
+
+## 📝 Summary
+[2-3 sentence overview of what this lecture covered]
+
+## 🔑 Key Concepts
+[The most important ideas explained clearly]
+
+## 📌 Important Details
+[Specific facts, definitions, formulas, or examples mentioned]
+
+## 🎯 What To Study
+[What a student should focus on and review]`);
+
+    resultEl.innerHTML = `
+      <div style="margin-bottom:12px;">
+        <strong style="font-size:13px;">✅ Transcript ready (${transcript.split(' ').length} words)</strong>
+        <button onclick="toggleTranscript(this)" class="btn btn-secondary" style="margin-left:10px;padding:4px 10px;font-size:12px;">Show transcript</button>
+        <div id="raw-transcript" class="hidden" style="margin-top:10px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;">${transcript}</div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+      <p>${renderMarkdown(summary)}</p>`;
+
+  } catch (e) {
+    resultEl.innerHTML = `<p style="color:var(--danger)">❌ Error: ${e.message}</p>`;
+  }
+
+  btn.textContent = '🎙️ Transcribe & Summarize'; btn.disabled = false;
+}
+
+function toggleTranscript(btn) {
+  const el = document.getElementById('raw-transcript');
+  const hidden = el.classList.toggle('hidden');
+  btn.textContent = hidden ? 'Show transcript' : 'Hide transcript';
 }
