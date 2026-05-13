@@ -9,7 +9,7 @@ const GEMINI_KEY = 'AIzaSyDAY5yuI5NR2meBPgNyyCdZeQrn0bxegY4'; // paste your key 
 
 async function askGemini(prompt) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
